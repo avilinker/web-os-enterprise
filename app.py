@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_socketio import SocketIO, join_room, leave_room
 import datetime
+import os
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -139,7 +140,6 @@ def run_command():
 def get_all_computers():
     return jsonify(active_sessions)
 
-# הצטרפות חכמה לחדר (Room) של המחשב הספציפי דרך Socket.IO
 @socketio.on('join_pc_room')
 def on_join(data):
     pc_id = data.get('pc_id')
@@ -147,4 +147,5 @@ def on_join(data):
         join_room(pc_id)
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
