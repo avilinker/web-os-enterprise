@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web OS - Isolated Client Session</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
+        body { background: #008080; height: 100vh; overflow: hidden; position: relative; }
+        
+        #loginOverlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 99999; }
+        .login-box { background: #c0c0c0; border: 3px solid; border-color: #fff #808080 #808080 #fff; padding: 20px; width: 340px; display: flex; flex-direction: column; gap: 10px; box-shadow: 5px 5px 15px rgba(0,0,0,0.5); }
+        .login-box h2 { font-size: 16px; background: #000080; color: white; padding: 6px; margin: -20px -20px 10px -20px; text-align: center; }
+        .login-box input { padding: 8px; font-size: 14px; border: 2px inset #fff; }
+        .login-box button { padding: 9px; font-weight: bold; cursor: pointer; background: #c0c0c0; border: 2px outset #fff; }
+        .login-hints { font-size: 12px; color: #333; background: #e0e0e0; padding: 6px; border: 1px dashed #666; }
+
+        .aws-topbar { position: absolute; top: 0; width: 100%; height: 35px; background: #232f3e; color: white; display: none; align-items: center; justify-content: space-between; padding: 0 15px; font-size: 13px; z-index: 9998; font-family: monospace; }
+        .aws-back-btn { background: #ff9900; color: #000; border: none; padding: 3px 10px; font-weight: bold; cursor: pointer; border-radius: 3px; }
+        .aws-back-btn:hover { background: #e88b00; }
+
+        .taskbar { position: absolute; bottom: 0; width: 100%; height: 40px; background: #c0c0c0; border-top: 2px solid #fff; display: flex; align-items: center; padding: 2px 5px; gap: 10px; z-index: 9999; }
+        .taskbar-btn { background: #c0c0c0; border: 2px solid; border-color: #fff #808080 #808080 #fff; padding: 4px 10px; font-weight: bold; cursor: pointer; font-size: 13px; display: none; }
+        
+        .window { position: absolute; width: 520px; height: 380px; background: #c0c0c0; border: 2px solid; border-color: #fff #808080 #808080 #fff; display: flex; flex-direction: column; box-shadow: 4px 4px 10px rgba(0,0,0,0.3); display: none; }
+        .window-header { background: #000080; color: white; padding: 4px 8px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; cursor: move; }
+        .close-btn { background: #c0c0c0; border: 1px solid #fff; color: black; width: 18px; height: 18px; text-align: center; line-height: 14px; font-weight: bold; cursor: pointer; }
+
+        .terminal-body { background: #000; color: #0f0; font-family: monospace; flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; }
+        .terminal-output { white-space: pre-wrap; margin-bottom: 10px; }
+        .terminal-input-line { display: flex; gap: 5px; }
+        .terminal-input-line input { background: transparent; border: none; color: #0f0; font-family: monospace; outline: none; flex: 1; font-size: 14px; }
+
+        .notepad-body { flex: 1; display: flex; flex-direction: column; padding: 6px; gap: 6px; }
+        .notepad-top { display: flex; gap: 5px; align-items: center; }
+        .notepad-top select, .notepad-top button { padding: 4px; font-size: 13px; }
+        .notepad-top input { flex: 1; padding: 4px; font-size: 13px; }
+        .notepad-body textarea { flex: 1; resize: none; padding: 8px; font-family: monospace; font-size: 14px; border: 2px inset #fff; outline: none; background: #fff; }
+
+        #adminWindow { width: 750px; height: 500px; }
+        .admin-body { flex: 1; padding: 10px; background: #fff; overflow-y: auto; font-family: monospace; font-size: 13px; }
+        .pc-card { background: #f9f9f9; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-right: 5px solid #000080; display: flex; justify-content: space-between; align-items: center; }
+        .connect-btn { background: #000080; color: white; border: none; padding: 6px 12px; font-weight: bold; cursor: pointer; }
+        .add-pc-box { background: #eee; padding: 8px; margin-bottom: 12px; display: flex; gap: 6px; }
+    </style>
+</head>
+<body>
+
+    <div class="aws-topbar" id="awsTopbar">
+        <div>☁️ AWS Console | מנוהל כעת במחשב: <span id="awsActivePc" style="color: #ff9900; font-weight:bold;"></span></div>
+        <button class="aws-back-btn" onclick="returnToAdminDashboard()">⬅️ חזרה ל-Fleet Dashboard</button>
+    </div>
+
+    <div id="loginOverlay">
+        <div class="login-box">
+            <h2>Web OS - כניסת מערכת</h2>
+            <label>שם מחשב או מנהל:</label>
+            <input type="text" id="loginUser" placeholder="למשל: admin או pc_avi">
+            <label>סיסמה (למנהל: 123):</label>
+            <input type="password" id="loginPass" placeholder="סיסמה...">
+            <button onclick="login()">התחבר למערכת</button>
+            <div class="login-hints">
+                <b>💡 מידע להתחברות:</b><br>
+                • אדמין: <code>admin</code> (סיסמה: <code>123</code>)<br>
+                • מחשב פעיל: <code>pc_avi</code>
+            </div>
+        </div>
+    </div>
+
+    <div id="desktop">
+        
+        <div class="window" id="terminalWindow" style="top: 50px; right: 40px;">
+            <div class="window-header" id="terminalHeader">
+                <span>💻 Terminal - <span id="currentPcLabel"></span></span>
+                <div class="close-btn" onclick="toggleWindow('terminalWindow')">X</div>
+            </div>
+            <div class="terminal-body" onclick="document.getElementById('cmdInput').focus()">
+                <div id="output" class="terminal-output">Web OS Isolated Session Active\nהקלד 'help' לעזרה.\n</div>
+                <div class="terminal-input-line">
+                    <span id="promptUser">user@webos:~$</span>
+                    <input type="text" id="cmdInput" onkeydown="handleCommand(event)">
+                </div>
+            </div>
+        </div>
+
+        <div class="window" id="notepadWindow" style="top: 80px; left: 50px;">
+            <div class="window-header" id="notepadHeader">
+                <span>📝 Notepad - עריכת קבצים</span>
+                <div class="close-btn" onclick="toggleWindow('notepadWindow')">X</div>
+            </div>
+            <div class="notepad-body">
+                <div class="notepad-top">
+                    <select id="fileSelect" onchange="loadFileContent()">
+                        <option value="">-- בחר קובץ --</option>
+                    </select>
+                    <input type="text" id="fileNameInput" placeholder="שם קובץ חדש...">
+                </div>
+                <textarea id="fileContent" placeholder="כתוב תוכן כאן..."></textarea>
+                <button onclick="saveFile()">💾 שמור קובץ</button>
+            </div>
+        </div>
+
+        <div class="window" id="adminWindow" style="top: 60px; left: 60px;">
+            <div class="window-header" id="adminHeader">
+                <span>🖥️ Fleet Manager - ניהול מחשבים מרחוק</span>
+                <div class="close-btn" onclick="toggleWindow('adminWindow')">X</div>
+            </div>
+            <div class="admin-body" id="adminBody">
+                <div class="add-pc-box">
+                    <input type="text" id="newPcIdInput" placeholder="מזהה מחשב חדש (למשל: pc_office_03)...">
+                    <button onclick="addNewPc()" style="padding:4px 10px; font-weight:bold; cursor:pointer;">➕ הוסף מחשב לרשת</button>
+                </div>
+                <div id="fleetListContainer">טעינת מחשבים...</div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="taskbar">
+        <button class="taskbar-btn" id="terminalMenuBtn" onclick="toggleWindow('terminalWindow')">💻 Terminal</button>
+        <button class="taskbar-btn" id="notepadMenuBtn" onclick="toggleWindow('notepadWindow')">📝 Notepad</button>
+        <button class="taskbar-btn" id="adminMenuBtn" style="background: #ffcccc;" onclick="openAdminPanel()">🖥️ Fleet Manager</button>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentRole = "";
+        let activePcId = "";
+        let filesCache = {};
+
+        socket.on('fleet_updated', function(fleet) {
+            if (currentRole === 'admin' && document.getElementById('adminWindow').style.display === 'flex') {
+                renderFleetList(fleet);
+            }
+        });
+
+        // האזנה ממוקדת אך ורק לחדר של הלקוח הנוכחי שפתוח במסך
+        socket.on('file_updated', function(data) {
+            if (data.pc_id === activePcId) {
+                filesCache = data.files;
+                updateFileSelectDropdown();
+            }
+        });
+
+        function login() {
+            const user = document.getElementById('loginUser').value.trim();
+            const pass = document.getElementById('loginPass').value.trim();
+
+            if (!user) { alert('נא להזין שם משתמש'); return; }
+
+            fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, password: pass })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    currentRole = data.role;
+                    document.getElementById('loginOverlay').style.display = 'none';
+
+                    if (currentRole === 'admin') {
+                        document.getElementById('adminMenuBtn').style.display = 'block';
+                        openAdminPanel();
+                    } else {
+                        activePcId = data.pc_id;
+                        setupUserSession(activePcId);
+                    }
+                } else {
+                    alert(data.error);
+                }
+            });
+        }
+
+        function setupUserSession(pcId) {
+            activePcId = pcId;
+            document.getElementById('currentPcLabel').innerText = activePcId;
+            document.getElementById('promptUser').innerText = `${activePcId}@webos:~$`;
+            
+            // רישום הלקוח לחדר ה-Socket הספציפי של המחשב הזה
+            socket.emit('join_pc_room', { pc_id: pcId });
+
+            document.getElementById('terminalMenuBtn').style.display = 'block';
+            document.getElementById('notepadMenuBtn').style.display = 'block';
+            
+            if (currentRole === 'admin') {
+                document.getElementById('awsTopbar').style.display = 'flex';
+                document.getElementById('awsActivePc').innerText = activePcId;
+                document.getElementById('adminWindow').style.display = 'none';
+            }
+
+            toggleWindow('terminalWindow');
+            loadFiles();
+        }
+
+        function returnToAdminDashboard() {
+            document.getElementById('awsTopbar').style.display = 'none';
+            document.getElementById('terminalWindow').style.display = 'none';
+            document.getElementById('notepadWindow').style.display = 'none';
+            openAdminPanel();
+        }
+
+        makeDraggable(document.getElementById("terminalWindow"), document.getElementById("terminalHeader"));
+        makeDraggable(document.getElementById("notepadWindow"), document.getElementById("notepadHeader"));
+        makeDraggable(document.getElementById("adminWindow"), document.getElementById("adminHeader"));
+
+        function makeDraggable(windowEl, headerEl) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            headerEl.onmousedown = dragMouseDown;
+            function dragMouseDown(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+                document.querySelectorAll('.window').forEach(w => w.style.zIndex = 10);
+                windowEl.style.zIndex = 100;
+            }
+            function elementDrag(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                windowEl.style.top = (windowEl.offsetTop - pos2) + "px";
+                windowEl.style.left = (windowEl.offsetLeft - pos1) + "px";
+            }
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+            }
+        }
+
+        function toggleWindow(windowId) {
+            const win = document.getElementById(windowId);
+            win.style.display = win.style.display === "none" ? "flex" : "none";
+            win.style.zIndex = 100;
+        }
+
+        function handleCommand(e) {
+            if (e.key === 'Enter') {
+                const inputEl = document.getElementById('cmdInput');
+                const outputEl = document.getElementById('output');
+                const command = inputEl.value.trim();
+
+                if (command.toLowerCase() === 'clear') {
+                    outputEl.innerText = '';
+                    inputEl.value = '';
+                    return;
+                }
+
+                outputEl.innerText += `\n${activePcId}@webos:~$ ${command}`;
+
+                fetch('/api/computer/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pc_id: activePcId, command: command })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    outputEl.innerText += `\n${data.output}\n`;
+                    const body = document.querySelector('.terminal-body');
+                    body.scrollTop = body.scrollHeight;
+                    loadFiles();
+                });
+
+                inputEl.value = '';
+            }
+        }
+
+        function loadFiles() {
+            if (!activePcId) return;
+            fetch(`/api/computer/${activePcId}`)
+                .then(res => res.json())
+                .then(data => {
+                    filesCache = data.files || {};
+                    updateFileSelectDropdown();
+                });
+        }
+
+        function updateFileSelectDropdown() {
+            const select = document.getElementById('fileSelect');
+            let options = '<option value="">-- בחר קובץ --</option>';
+            for (let filename in filesCache) {
+                options += `<option value="${filename}">${filename}</option>`;
+            }
+            select.innerHTML = options;
+        }
+
+        function loadFileContent() {
+            const filename = document.getElementById('fileSelect').value;
+            if (filename && filesCache[filename] !== undefined) {
+                document.getElementById('fileNameInput').value = filename;
+                document.getElementById('fileContent').value = filesCache[filename];
+            }
+        }
+
+        function saveFile() {
+            const filename = document.getElementById('fileNameInput').value.trim();
+            const content = document.getElementById('fileContent').value;
+            if (!filename) { alert('נא להזין שם קובץ'); return; }
+            if (!activePcId) { alert('שגיאה: לא נבחר מחשב פעיל'); return; }
+
+            fetch('/api/computer/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pc_id: activePcId, filename: filename, content: content })
+            })
+            .then(res => res.json())
+            .then(data => {
+                loadFiles();
+            });
+        }
+
+        function openAdminPanel() {
+            toggleWindow('adminWindow');
+            fetchFleetData();
+        }
+
+        function connectToPc(pcId) {
+            setupUserSession(pcId);
+        }
+
+        function addNewPc() {
+            const newPcId = document.getElementById('newPcIdInput').value.trim();
+            if (!newPcId) { alert('נא להזין שם מחשב'); return; }
+
+            fetch('/api/admin/add_pc', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pc_id: newPcId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(!data.success) {
+                    alert(data.error);
+                } else {
+                    document.getElementById('newPcIdInput').value = '';
+                }
+            });
+        }
+
+        function fetchFleetData() {
+            if (currentRole !== 'admin') return;
+            fetch('/api/admin/all_computers')
+                .then(res => res.json())
+                .then(fleet => {
+                    renderFleetList(fleet);
+                });
+        }
+
+        function renderFleetList(fleet) {
+            let html = '';
+            for (let pcId in fleet) {
+                let pc = fleet[pcId];
+                let fileList = Object.keys(pc.files).join(', ') || 'אין קבצים';
+                html += `<div class="pc-card">
+                    <div>
+                        <b>💻 מחשב:</b> ${pcId}<br>
+                        <b>🟢 סטטוס:</b> ${pc.status} (נראה לאחרונה: ${pc.last_seen})<br>
+                        <b>⚡ פעילות:</b> ${pc.last_activity}<br>
+                        <b>📂 קבצים:</b> ${fileList}
+                    </div>
+                    <button class="connect-btn" onclick="connectToPc('${pcId}')">🔗 התחבר למחשב</button>
+                </div>`;
+            }
+            document.getElementById('fleetListContainer').innerHTML = html;
+        }
+    </script>
+</body>
+</html>
