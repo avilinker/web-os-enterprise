@@ -12,7 +12,6 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 connected_players = {}
 bots = {}
 
-# יצירת בוטים אוטומטיים לזירה למצב אימון/משחק לבד
 def init_bots():
     for i in range(1, 4):
         bot_id = f"bot_{i}"
@@ -21,7 +20,7 @@ def init_bots():
             "team": "terrorist",
             "x": random.randint(-15, 15),
             "y": 0,
-            "z": random.randint(-20, -5),
+            "z": random.randint(-25, -5),
             "rot": 0,
             "health": 100,
             "weapon": "AK47"
@@ -29,15 +28,11 @@ def init_bots():
 
 init_bots()
 
-# מנוע תנועת בוטים ברקע
 def bot_ai_loop():
     while True:
         time.sleep(0.05)
         for bot_id, b in bots.items():
-            # תנועה אקראית פשוטה לבוטים
             b["rot"] += random.choice([-0.05, 0.05, 0])
-            b["x"] -= math_sin = float(random.choice([-0.1, 0.1]))
-            b["z"] += float(random.choice([-0.1, 0.1]))
         socketio.emit('update_game_state', {"players": connected_players, "bots": bots})
 
 threading.Thread(target=bot_ai_loop, daemon=True).start()
@@ -51,7 +46,7 @@ def index():
 def login():
     data = request.get_json()
     username = data.get('username', '').strip()
-    team = data.get('team', 'idf') # idf או terrorist
+    team = data.get('team', 'idf')
     weapon = data.get('weapon', 'M16')
 
     if not username:
@@ -89,7 +84,6 @@ def on_move(data):
 
 @socketio.on('player_shoot')
 def on_shoot(data):
-    # טיפול בירי ופגיעה בבוטים או שחקנים
     target_id = data.get('target_id')
     if target_id in bots:
         bots[target_id]["health"] -= 34
