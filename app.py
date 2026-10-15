@@ -3,6 +3,8 @@ from flask_socketio import SocketIO, join_room
 import datetime
 import os
 import random
+import threading
+import time
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -15,6 +17,11 @@ active_sessions = {
         "cpu": 24,
         "ram": 58,
         "files": {"welcome.txt": "היי, זה הקובץ של אבי.", "notes.txt": "רשימת משימות מערכת."},
+        "processes": [
+            {"pid": 101, "name": "python.exe", "cpu": 12, "memory": "45MB"},
+            {"pid": 104, "name": "nginx_service", "cpu": 5, "memory": "22MB"}
+        ],
+        "command_history": ["help", "ls", "top"],
         "last_activity": "התחבר למערכת"
     },
     "pc_shilo": {
@@ -24,6 +31,10 @@ active_sessions = {
         "cpu": 0,
         "ram": 15,
         "files": {"hello.txt": "שלום משרת הבדיקה של שילו."},
+        "processes": [
+            {"pid": 201, "name": "systemd", "cpu": 1, "memory": "10MB"}
+        ],
+        "command_history": ["help"],
         "last_activity": "נוצר מראש"
     }
 }
@@ -31,6 +42,18 @@ active_sessions = {
 admins_db = {
     "admin": "123"
 }
+
+# מנוע רקע אוטומטי שמעדכן מדדים ומדמה תהליכים חיים בלייב לכל המחשבים
+def background_fleet_simulator():
+    while True:
+        time.sleep(5)
+        for pc_id, info in active_sessions.items():
+            if info["status"].includes("Online") or info["status"].__contains__("מחובר"):
+                info["cpu"] = random.randint(12, 88)
+                info["ram"] = random.randint(25, 82)
+        socketio.emit('fleet_updated', active_sessions)
+
+threading.Thread(target=background_fleet_simulator, daemon=True).start()
 
 @app.route('/')
 def index():
@@ -57,12 +80,15 @@ def login():
             "cpu": random.randint(15, 45),
             "ram": random.randint(30, 70),
             "files": {"notes.txt": f"מסמך אישי עבור {username}"},
+            "processes": [
+                {"pid": random.randint(300, 900), "name": "user_shell.py", "cpu": random.randint(5, 20), "memory": "30MB"}
+            ],
+            "command_history": ["help"],
             "last_activity": "התחבר למערכת"
         }
     else:
         active_sessions[username]["status"] = "מחובר (Online)"
         active_sessions[username]["last_seen"] = datetime.datetime.now().strftime('%H:%M:%S')
-        active_sessions[username]["cpu"] = random.randint(15, 45)
 
     socketio.emit('fleet_updated', active_sessions)
     return jsonify({"success": True, "role": "user", "pc_id": username})
@@ -83,7 +109,9 @@ def add_pc():
         "last_seen": "טרם התחבר",
         "cpu": 0,
         "ram": 10,
-        "files": {"config.txt": "הגדרות ראשוניות לתחנה."},
+        "files": {"config.txt": "הגדרות ראשוניות."},
+        "processes": [],
+        "command_history": [],
         "last_activity": "נוצר מרחוק"
     }
     socketio.emit('fleet_updated', active_sessions)
@@ -92,29 +120,23 @@ def add_pc():
 @app.route('/api/computer/<pc_id>', methods=['GET'])
 def get_computer_data(pc_id):
     if pc_id in active_sessions:
-        # עדכון אקראי קל של מדדים להמחשת חיים בלייב
-        active_sessions[pc_id]["cpu"] = random.randint(10, 85)
-        active_sessions[pc_id]["ram"] = random.randint(25, 80)
         return jsonify(active_sessions[pc_id])
     return jsonify({"error": "המחשב אינו קיים"}), 404
 
-@app.route('/api/computer/save', methods=['POST'])
-def save_computer_file():
+@app.route('/api/computer/kill_process', methods=['POST'])
+def kill_process():
     data = request.get_json()
     pc_id = data.get('pc_id')
-    filename = data.get('filename')
-    content = data.get('content')
+    pid = int(data.get('pid'))
 
     if pc_id in active_sessions:
-        active_sessions[pc_id]["files"][filename] = content
-        active_sessions[pc_id]["last_activity"] = f"שמר את הקובץ: {filename}"
-        active_sessions[pc_id]["last_seen"] = datetime.datetime.now().strftime('%H:%M:%S')
-        
-        socketio.emit('file_updated', {"pc_id": pc_id, "files": active_sessions[pc_id]["files"]}, room=pc_id)
+        pc = active_sessions[pc_id]
+        pc["processes"] = [p for p in pc["processes"] if p["pid"] != pid]
+        pc["last_activity"] = f"חיסל תהליך PID: {pid}"
         socketio.emit('fleet_updated', active_sessions)
-        return jsonify({"success": True, "message": "הקובץ נשמר בהצלחה!"})
-    
-    return jsonify({"success": False, "error": "שגיאה בשמירה"}), 400
+        socketio.emit('process_killed', {"pc_id": pc_id, "processes": pc["processes"]}, room=pc_id)
+        return jsonify({"success": True, "message": f"התהליך {pid} חוסל בהצלחה"})
+    return jsonify({"success": False, "error": "שגיאה"})
 
 @app.route('/api/computer/command', methods=['POST'])
 def run_command():
@@ -126,19 +148,20 @@ def run_command():
         return jsonify({"output": "שגיאה: מחשב לא נמצא"})
 
     pc = active_sessions[pc_id]
+    pc["command_history"].append(command)
     output = ""
     cmd_lower = command.lower()
 
     if cmd_lower == 'help':
-        output = "פקודות זמינות:\n - help: הצגת עזרה\n - date: תאריך ושעה מערכת\n - ls: הצגת קבצים בדיסק\n - top: מדדי חומרה נוכחיים (CPU/RAM)\n - sysinfo: מידע על השרת והמערכת\n - clear: ניקוי מסך המסוף"
+        output = "פקודות זמינות:\n - help: הצגת עזרה\n - date: תאריך ושעה\n - ls: הצגת קבצים\n - top: סיכום משאבים\n - ps: הצגת תהליכים רצים\n - clear: ניקוי מסך"
     elif cmd_lower == 'date':
         output = str(datetime.datetime.now())
     elif cmd_lower == 'ls':
-        output = "קבצים זמינים:\n" + "\n".join([f" 📄 {f}" for f in pc["files"].keys()])
+        output = "קבצים בדיסק:\n" + "\n".join([f" 📄 {f}" for f in pc["files"].keys()])
     elif cmd_lower == 'top':
-        output = f"=== מנהל משימות וירטואלי ===\nCPU Usage: {pc['cpu']}%\nRAM Usage: {pc['ram']}%\nStatus: {pc['status']}"
-    elif cmd_lower == 'sysinfo':
-        output = f"Web OS Enterprise Kernel v3.4\nHost Node: {pc_id}\nUptime: 99.9% Online\nSecurity: Isolated Room Active"
+        output = f"CPU: {pc['cpu']}% | RAM: {pc['ram']}% | Active Processes: {len(pc['processes'])}"
+    elif cmd_lower == 'ps':
+        output = "PID\tNAME\t\tCPU\tMEM\n" + "\n".join([f"{p['pid']}\t{p['name']}\t{p['cpu']}%\t{p['memory']}" for p in pc["processes"]])
     elif cmd_lower.startswith('cat '):
         filename = command.split(' ', 1)[1].strip()
         if filename in pc["files"]:
@@ -146,7 +169,7 @@ def run_command():
         else:
             output = f"שגיאה: הקובץ '{filename}' לא נמצא."
     else:
-        output = f"הפקודה '{command}' בוצעה בהצלחה במרחב המבודד."
+        output = f"הפקודה '{command}' בוצעה בהצלחה בסביבה המבודדת."
 
     pc["last_activity"] = f"הריץ פקודה: {command}"
     socketio.emit('fleet_updated', active_sessions)
