@@ -5,58 +5,64 @@
     <title>CS: ISRAELI TACTICAL STRIKE 3D</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- טעינת GLTFLoader מובנה מתוך CDN לטעינת מודלים תלת-ממדיים ריאליסטיים -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background: #050811; color: #f8fafc; height: 100vh; overflow: hidden; }
+        body { background: #020617; color: #f8fafc; height: 100vh; overflow: hidden; }
 
         #menu-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(135deg, #0f172a, #020617);
+            background: radial-gradient(circle, #1e293b 0%, #020617 100%);
             display: flex; justify-content: center; align-items: center; z-index: 1000;
         }
         .menu-box {
-            background: #1e293b; padding: 35px; border-radius: 12px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.9); width: 420px; text-align: center;
+            background: #0f172a; padding: 40px; border-radius: 12px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.9); width: 440px; text-align: center;
             border: 1px solid #334155;
         }
-        .menu-box h1 { color: #38bdf8; margin-bottom: 5px; font-size: 22px; }
-        .menu-box p { color: #94a3b8; font-size: 13px; margin-bottom: 20px; }
+        .menu-box h1 { color: #38bdf8; margin-bottom: 8px; font-size: 22px; letter-spacing: 1px; }
+        .menu-box p { color: #94a3b8; font-size: 13px; margin-bottom: 25px; }
         .menu-box input, .menu-box select {
             width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 6px;
-            border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 15px; text-align: center;
+            border: 1px solid #475569; background: #1e293b; color: #fff; font-size: 15px; text-align: center;
         }
-        .btn-group { display: flex; gap: 10px; margin-top: 10px; }
         .menu-btn {
-            flex: 1; padding: 12px; background: #0284c7; border: none; color: #fff;
-            font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.2s; font-size: 14px;
+            width: 100%; padding: 14px; background: #0284c7; border: none; color: #fff;
+            font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.2s; font-size: 15px; margin-top: 10px;
         }
         .menu-btn:hover { background: #38bdf8; color: #0f172a; }
-        .btn-bot { background: #0d9488; }
-        .btn-bot:hover { background: #2dd4bf; color: #0f172a; }
 
         #game-container { display: none; width: 100vw; height: 100vh; position: relative; cursor: crosshair; }
         
         #crosshair {
-            position: absolute; top: 50%; left: 50%; width: 14px; height: 14px;
+            position: absolute; top: 50%; left: 50%; width: 16px; height: 16px;
             transform: translate(-50%, -50%); pointer-events: none;
             border: 2px solid rgba(56, 189, 248, 0.95); border-radius: 50%;
         }
         #crosshair::after {
-            content: ''; position: absolute; top: 5px; left: 5px; width: 2px; height: 2px; background: #ef4444;
+            content: ''; position: absolute; top: 6px; left: 6px; width: 2px; height: 2px; background: #ef4444;
         }
 
-        .hud {
-            position: absolute; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.92);
-            padding: 15px 20px; border-radius: 8px; border: 1px solid #334155; pointer-events: none;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+        .hud-top {
+            position: absolute; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95);
+            padding: 15px 22px; border-radius: 8px; border: 1px solid #334155; pointer-events: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.7); min-width: 260px;
         }
-        .hud h3 { color: #38bdf8; margin-bottom: 5px; font-size: 16px; }
-        .hud p { font-size: 13px; color: #cbd5e1; margin-bottom: 3px; }
+        .hud-top h3 { color: #38bdf8; margin-bottom: 6px; font-size: 17px; }
+        .hud-top p { font-size: 14px; color: #cbd5e1; margin-bottom: 3px; }
 
-        .weapon-hud {
-            position: absolute; bottom: 25px; right: 25px; background: rgba(15, 23, 42, 0.92);
-            padding: 12px 22px; border-radius: 8px; border: 1px solid #334155; pointer-events: none;
-            font-family: monospace; font-size: 18px; color: #34d399; letter-spacing: 1px;
+        .hud-bottom-right {
+            position: absolute; bottom: 25px; right: 25px; background: rgba(15, 23, 42, 0.95);
+            padding: 15px 25px; border-radius: 8px; border: 1px solid #334155; pointer-events: none;
+            font-family: monospace; font-size: 22px; color: #34d399; letter-spacing: 2px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.7);
+        }
+        .health-bar-container {
+            width: 100%; background: #334155; height: 8px; border-radius: 4px; margin-top: 6px; overflow: hidden;
+        }
+        .health-bar-fill {
+            width: 100%; background: #22c55e; height: 100%; transition: width 0.2s;
         }
     </style>
 </head>
@@ -65,38 +71,38 @@
     <div id="menu-screen">
         <div class="menu-box">
             <h1>🇮🇱 ISRAELI TACTICAL STRIKE 3D</h1>
-            <p>בחר יחידה והכנס לזירת הקרב</p>
-            <input type="text" id="username-input" placeholder="שם הלוחם (למשל: אבי)...">
+            <p>מערכת קרב מתקדמת עם מודלים תלת-ממדיים</p>
+            <input type="text" id="username-input" placeholder="שם הלוחם (למשל: אבי)..." value="אבי">
             
-            <label style="font-size: 13px; color: #94a3b8; display: block; text-align: right; margin-bottom: 5px;">בחר כוח:</label>
+            <label style="font-size: 13px; color: #94a3b8; display: block; text-align: right; margin-bottom: 5px;">בחר כוח מבצעי:</label>
             <select id="team-select">
-                <option value="idf">🛡️ כוחות הביטחון / צה"ל (ימ"מ)</option>
-                <option value="terrorist">⚡ ארגון טרור / מחבלים</option>
+                <option value="idf">🛡️ ימ"מ / צה"ל (כוחות הביטחון)</option>
+                <option value="terrorist">⚡ חוליית מחבלים עוינת</option>
             </select>
 
             <label style="font-size: 13px; color: #94a3b8; display: block; text-align: right; margin-bottom: 5px;">בחר נשק ראשי:</label>
             <select id="weapon-select">
-                <option value="M16">רובה סער M16 מתקדם</option>
+                <option value="M16">רובה סער מתקדם M16</option>
                 <option value="AK47">קלצ'ניקוב AK-47</option>
                 <option value="RPG">מטול RPG כבד</option>
             </select>
 
-            <div class="btn-group">
-                <button class="menu-btn btn-bot" onclick="joinGame('bot')">🤖 אימון מול בוטים</button>
-                <button class="menu-btn" onclick="joinGame('multi')">🌐 משחק רשת חי</button>
-            </div>
+            <button class="menu-btn" onclick="joinGame()">🎮 התחל במבצע</button>
         </div>
     </div>
 
     <div id="game-container">
         <div id="crosshair"></div>
-        <div class="hud">
+        <div class="hud-top">
             <h3 id="hud-name">לוחם</h3>
             <p>יחידה: <span id="hud-team" style="color: #38bdf8;">צה"ל</span></p>
-            <p>תזוזה: <b>W, A, S, D</b> | סיבוב: <b>חצים</b> | ירי: <b>קליק שמאלי</b></p>
-            <p>חיסולים / ניקוד: <span id="hud-score" style="color: #34d399;">0</span></p>
+            <p>חיסולים: <span id="hud-score" style="color: #34d399;">0</span></p>
+            <p style="margin-top: 6px;">מד חיים (HP):</p>
+            <div class="health-bar-container">
+                <div class="health-bar-fill" id="hp-bar"></div>
+            </div>
         </div>
-        <div class="weapon-hud" id="hud-weapon">M16 | 30/30</div>
+        <div class="hud-bottom-right" id="hud-weapon">M16 | <span id="ammo-count">30</span>/30</div>
     </div>
 
     <script>
@@ -105,10 +111,12 @@
         let scene, camera, renderer, playerGroup;
         let activePlayers = {}, activeBots = {};
         let keys = { w: false, a: false, s: false, d: false, left: false, right: false };
-        let playerPos = { x: 0, y: 0, z: 0, rot: 0 };
+        let playerPos = { x: 0, y: 0, z: 0, rot: 0, health: 100 };
         let bullets = [];
+        let currentAmmo = 30;
+        let gltfLoader = new THREE.GLTFLoader();
 
-        function joinGame(mode) {
+        function joinGame() {
             username = document.getElementById('username-input').value.trim();
             if (!username) { alert('נא להזין שם לוחם'); return; }
             team = document.getElementById('team-select').value;
@@ -118,72 +126,61 @@
             document.getElementById('game-container').style.display = 'block';
             document.getElementById('hud-name').innerText = `לוחם: ${username}`;
             document.getElementById('hud-team').innerText = team === 'idf' ? '🛡️ ימ"מ / צה"ל' : '⚡ חוליית טרור';
-            document.getElementById('hud-weapon').innerText = `${weapon} | 30/30`;
+            document.getElementById('hud-weapon').innerHTML = `${weapon} | <span id="ammo-count">${currentAmmo}</span>/30`;
 
             init3DWorld();
             socket.emit('join_game', { username, team, weapon });
         }
 
-        // יצירת דמות מפורטת וריאליסטית יותר (גוף, אפוד מגן, ראש, קסדה וקנה נשק)
-        function createDetailedOperator(teamType, weaponType) {
+        // פונקציית יצירת דמות ריאליסטית עם טעינת מודל GLTF חיצוני עם גיבוי מבני
+        function createOperatorModel(teamType, weaponType) {
             const group = new THREE.Group();
-            let uniformColor = teamType === 'idf' ? 0x1e3a8a : 0x7c2d12; // כחול כהה לימ"מ, אדום-חום למחבלים
-            let vestColor = teamType === 'idf' ? 0x0f172a : 0x451a03;
 
-            // רגליים
-            const legMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7 });
-            const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.7, 0.25), legMat);
-            leftLeg.position.set(-0.15, 0.35, 0);
-            const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.7, 0.25), legMat);
-            rightLeg.position.set(0.15, 0.35, 0);
-            group.add(leftLeg);
-            group.add(rightLeg);
-
-            // גוף ואפוד טקטי
+            // מודל גיבוי גיאומטרי מורכב וריאליסטי למקרה שהטעינה מהרשת תתעכב
+            let uniformColor = teamType === 'idf' ? 0x1d4ed8 : 0x9a3412;
+            
             const body = new THREE.Mesh(
-                new THREE.BoxGeometry(0.7, 0.9, 0.4),
-                new THREE.MeshStandardMaterial({ color: uniformColor, roughness: 0.5 })
+                new THREE.BoxGeometry(0.7, 1.0, 0.4),
+                new THREE.MeshStandardMaterial({ color: uniformColor, roughness: 0.3 })
             );
             body.position.y = 1.0;
             group.add(body);
 
-            const vest = new THREE.Mesh(
-                new THREE.BoxGeometry(0.75, 0.6, 0.45),
-                new THREE.MeshStandardMaterial({ color: vestColor, roughness: 0.3 })
-            );
-            vest.position.y = 1.05;
-            group.add(vest);
-
-            // ראש וקסדה מבצעית
-            const head = new THREE.Mesh(
-                new THREE.BoxGeometry(0.35, 0.35, 0.35),
-                new THREE.MeshStandardMaterial({ color: 0xfde047, roughness: 0.6 })
-            );
-            head.position.y = 1.65;
-            group.add(head);
-
             const helmet = new THREE.Mesh(
-                new THREE.BoxGeometry(0.42, 0.2, 0.42),
-                new THREE.MeshStandardMaterial({ color: teamType === 'idf' ? 0x334155 : 0x27272a, metalness: 0.4 })
+                new THREE.SphereGeometry(0.25, 16, 16),
+                new THREE.MeshStandardMaterial({ color: teamType === 'idf' ? 0x334155 : 0x18181b, metalness: 0.6 })
             );
-            helmet.position.y = 1.8;
+            helmet.position.y = 1.7;
             group.add(helmet);
 
-            // נשק ארוך בידיים
-            const gun = new THREE.Mesh(
-                new THREE.BoxGeometry(0.12, 0.12, 1.1),
-                new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.8 })
-            );
-            gun.position.set(0.35, 1.0, -0.5);
+            let gunGeo = new THREE.BoxGeometry(0.1, 0.1, 1.2);
+            if (weaponType === 'RPG') gunGeo = new THREE.CylinderGeometry(0.12, 0.12, 2.0, 8);
+            const gun = new THREE.Mesh(gunGeo, new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8 }));
+            gun.position.set(0.35, 1.0, -0.6);
             group.add(gun);
+
+            // ניסיון טעינת מודל תלת-ממדי אמיתי משרת ציבורי (CesiumMan GLB)
+            gltfLoader.load(
+                'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/CesiumMan/glTF-Binary/CesiumMan.glb',
+                function (gltf) {
+                    const model = gltf.scene;
+                    model.scale.set(1.2, 1.2, 1.2);
+                    model.position.set(0, 0, 0);
+                    group.add(model);
+                },
+                undefined,
+                function (error) {
+                    console.log('Using procedural tactical model fallback');
+                }
+            );
 
             return group;
         }
 
         function init3DWorld() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x050811);
-            scene.fog = new THREE.FogExp2(0x050811, 0.03);
+            scene.background = new THREE.Color(0x020617);
+            scene.fog = new THREE.FogExp2(0x020617, 0.02);
 
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
 
@@ -192,27 +189,27 @@
             document.getElementById('game-container').appendChild(renderer.domElement);
 
             // תאורת זירה עשירה
-            scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-            const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.0);
-            dirLight.position.set(20, 50, 20);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.2);
+            dirLight.position.set(30, 60, 30);
             scene.add(dirLight);
 
-            // רצפת קרב עם גריד זוהר
-            scene.add(new THREE.GridHelper(120, 60, 0x0284c7, 0x1e293b));
+            // רצפה
+            scene.add(new THREE.GridHelper(160, 80, 0x0284c7, 0x1e293b));
 
-            // מחסות ובונקרים בזירה
+            // מחסות בזירה
             const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
-            for (let i = -3; i <= 3; i++) {
-                const bunker = new THREE.Mesh(new THREE.BoxGeometry(6, 2.2, 1.8), wallMat);
-                bunker.position.set(i * 14, 1.1, -18);
+            for (let i = -4; i <= 4; i++) {
+                const bunker = new THREE.Mesh(new THREE.BoxGeometry(6, 2.5, 2.0), wallMat);
+                bunker.position.set(i * 16, 1.25, -22);
                 scene.add(bunker);
             }
 
             // יצירת השחקן המקומי
-            playerGroup = createDetailedOperator(team, weapon);
+            playerGroup = createOperatorModel(team, weapon);
             scene.add(playerGroup);
 
-            // מקשים וירי
+            // אירועי מקלדת ועכבר
             window.addEventListener('keydown', (e) => setKey(e, true));
             window.addEventListener('keyup', (e) => setKey(e, false));
             window.addEventListener('mousedown', () => fireWeapon());
@@ -231,18 +228,22 @@
             }
         }
 
-        // פונקציית ירי אמיתית עם אפקט ויזואלי (קן לייזר/קליע ופגיעה בבוטים)
         function fireWeapon() {
-            // יצירת קליע זוהר שיוצא מהנשק קדימה
-            const bulletGeo = new THREE.SphereGeometry(0.1, 8, 8);
-            const bulletMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
-            const bulletMesh = new THREE.Mesh(bulletGeo, bulletMat);
+            if (currentAmmo <= 0) currentAmmo = 30;
+            currentAmmo--;
+            document.getElementById('ammo-count').innerText = currentAmmo;
+
+            // יצירת קליע זוהר
+            const bulletMesh = new THREE.Mesh(
+                new THREE.SphereGeometry(0.12, 8, 8),
+                new THREE.MeshBasicMaterial({ color: 0xfacc15 })
+            );
             
             let angle = playerPos.rot;
             bulletMesh.position.set(
-                playerGroup.position.x - Math.sin(angle) * 1.5,
-                playerGroup.position.y + 1.1,
-                playerGroup.position.z - Math.cos(angle) * 1.5
+                playerGroup.position.x - Math.sin(angle) * 1.8,
+                playerGroup.position.y + 1.2,
+                playerGroup.position.z - Math.cos(angle) * 1.8
             );
             scene.add(bulletMesh);
 
@@ -250,23 +251,15 @@
                 mesh: bulletMesh,
                 dirX: -Math.sin(angle),
                 dirZ: -Math.cos(angle),
-                life: 40
+                life: 50
             });
 
-            // בדיקת פגיעה בבוטים בזירה
+            // בדיקת פגיעה בבוטים
             for (let botId in activeBots) {
                 let bMesh = activeBots[botId];
                 let dist = playerGroup.position.distanceTo(bMesh.position);
-                if (dist < 18) {
+                if (dist < 22) {
                     socket.emit('player_shoot', { target_id: botId });
-                    // אפקט הבהוב אדום לבוט שנפגע
-                    bMesh.traverse((child) => {
-                        if (child.material) {
-                            let oldColor = child.material.color.getHex();
-                            child.material.color.setHex(0xef4444);
-                            setTimeout(() => child.material.color.setHex(oldColor), 150);
-                        }
-                    });
                     break;
                 }
             }
@@ -275,7 +268,7 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            let speed = 0.14;
+            let speed = 0.15;
             let rotSpeed = 0.045;
 
             if (keys.left) playerPos.rot += rotSpeed;
@@ -302,11 +295,10 @@
             playerGroup.position.set(playerPos.x, playerPos.y, playerPos.z);
             playerGroup.rotation.y = playerPos.rot;
 
-            // טיסה ותנועה של קליעים בזירה
             for (let i = bullets.length - 1; i >= 0; i--) {
                 let b = bullets[i];
-                b.mesh.position.x += b.dirX * 1.2;
-                b.mesh.position.z += b.dirZ * 1.2;
+                b.mesh.position.x += b.dirX * 1.4;
+                b.mesh.position.z += b.dirZ * 1.4;
                 b.life--;
                 if (b.life <= 0) {
                     scene.remove(b.mesh);
@@ -314,29 +306,30 @@
                 }
             }
 
-            // מצלמת גוף שלישי טקטית חלקה מאחורי הלוחם
-            let camX = playerPos.x + Math.sin(angle) * 7.5;
-            let camZ = playerPos.z + Math.cos(angle) * 7.5;
-            camera.position.set(camX, playerPos.y + 4.0, camZ);
-            camera.lookAt(playerGroup.position.x, playerGroup.position.y + 1.2, playerGroup.position.z);
+            // מצלמת גוף שלישי טקטית
+            let camX = playerPos.x + Math.sin(angle) * 8.5;
+            let camZ = playerPos.z + Math.cos(angle) * 8.5;
+            camera.position.set(camX, playerPos.y + 4.5, camZ);
+            camera.lookAt(playerGroup.position.x, playerGroup.position.y + 1.4, playerGroup.position.z);
 
             socket.emit('player_move', playerPos);
             renderer.render(scene, camera);
         }
 
-        // סנכרון שחקנים ובוטים חיים מהשרת
         socket.on('update_game_state', function(data) {
             let players = data.players;
             let bots = data.bots;
 
             for (let id in players) {
                 if (id === socket.id) {
-                    document.getElementById('hud-score').innerText = players[id].score || 0;
+                    let p = players[id];
+                    document.getElementById('hud-score').innerText = p.score || 0;
+                    document.getElementById('hp-bar').style.width = (p.health || 100) + '%';
                     continue;
                 }
                 let p = players[id];
                 if (!activePlayers[id]) {
-                    const mesh = createDetailedOperator(p.team, p.weapon);
+                    const mesh = createOperatorModel(p.team, p.weapon);
                     scene.add(mesh);
                     activePlayers[id] = mesh;
                 }
@@ -347,7 +340,7 @@
             for (let id in bots) {
                 let b = bots[id];
                 if (!activeBots[id]) {
-                    const botMesh = createDetailedOperator('terrorist', 'AK47');
+                    const botMesh = createOperatorModel('terrorist', 'AK47');
                     scene.add(botMesh);
                     activeBots[id] = botMesh;
                 }
