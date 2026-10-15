@@ -2,13 +2,12 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>Web OS Enterprise - Virtual Fleet Manager</title>
+    <title>Web OS Enterprise - Ultimate Fleet</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: #0f172a; color: #f8fafc; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
         
-        /* Login Screen */
         #login-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(135deg, #1e293b, #0f172a);
@@ -27,18 +26,14 @@
         .login-box button {
             width: 100%; padding: 12px; background: #38bdf8; border: none;
             color: #0f172a; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 16px;
-            transition: background 0.2s;
         }
-        .login-box button:hover { background: #0ea5e9; }
 
-        /* Desktop Workspace */
         #desktop { display: none; flex: 1; position: relative; background: radial-gradient(circle, #1e293b 0%, #0f172a 100%); padding: 20px; overflow: hidden; }
         
-        /* Floating Windows (Window Manager) */
         .window {
             position: absolute; background: #1e293b; border: 1px solid #475569;
             border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            display: flex; flex-direction: column; min-width: 350px; width: 450px; height: 400px;
+            display: flex; flex-direction: column; min-width: 340px; width: 440px; height: 380px;
             resize: both; overflow: hidden;
         }
         .window-header {
@@ -46,28 +41,27 @@
             align-items: center; cursor: move; user-select: none; font-weight: bold; color: #38bdf8;
         }
         .window-controls span { cursor: pointer; padding: 0 6px; font-size: 14px; color: #94a3b8; }
-        .window-controls span:hover { color: #fff; }
-        .window-body { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .window-body { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
 
-        /* Dashboard & Metrics */
-        .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-        .metric-card { background: #0f172a; padding: 10px; border-radius: 6px; border: 1px solid #334155; text-align: center; }
-        .metric-value { font-size: 20px; font-weight: bold; color: #34d399; margin-top: 5px; }
+        .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .metric-card { background: #0f172a; padding: 8px; border-radius: 6px; border: 1px solid #334155; text-align: center; }
+        .metric-value { font-size: 18px; font-weight: bold; color: #34d399; margin-top: 3px; }
 
-        /* Terminal Screen */
         .terminal {
             background: #000; color: #00ff00; font-family: 'Courier New', Courier, monospace;
-            padding: 10px; border-radius: 6px; flex: 1; overflow-y: auto; font-size: 14px;
+            padding: 8px; border-radius: 6px; flex: 1; overflow-y: auto; font-size: 13px;
             display: flex; flex-direction: column;
         }
         .terminal-output { flex: 1; white-space: pre-wrap; margin-bottom: 5px; }
         .terminal-input-line { display: flex; align-items: center; gap: 5px; }
         .terminal-input-line span { color: #38bdf8; }
         .terminal-input-line input {
-            background: transparent; border: none; color: #fff; outline: none; flex: 1; font-family: monospace; font-size: 14px;
+            background: transparent; border: none; color: #fff; outline: none; flex: 1; font-family: monospace; font-size: 13px;
         }
 
-        /* Taskbar */
+        .process-item { display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 6px 10px; border-radius: 4px; border: 1px solid #334155; font-size: 13px; margin-bottom: 5px; }
+        .kill-btn { background: #ef4444; color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+
         #taskbar {
             height: 50px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid #334155;
             display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 999;
@@ -78,51 +72,41 @@
 </head>
 <body>
 
-    <!-- Login Window -->
     <div id="login-screen">
         <div class="login-box">
             <h2>Web OS Enterprise</h2>
-            <input type="text" id="username-input" placeholder="הכנס שם משתמש (למשל: avi או admin)">
-            <input type="password" id="password-input" placeholder="סיסמה (למשל: 123 למנהל)">
+            <input type="text" id="username-input" placeholder="שם משתמש (למשל: avi)">
+            <input type="password" id="password-input" placeholder="סיסמה (אם מנהל)">
             <button onclick="login()">התחבר למערכת</button>
         </div>
     </div>
 
-    <!-- Desktop Workspace -->
     <div id="desktop">
-        <!-- Floating Window: Fleet / System Control -->
-        <div class="window" id="win-fleet" style="top: 30px; left: 30px;">
+        <!-- Fleet & Live Metrics Window -->
+        <div class="window" id="win-fleet" style="top: 20px; left: 20px;">
             <div class="window-header">
                 <span>🖥️ ניהול חומרה ומדדים חיים</span>
                 <div class="window-controls"><span onclick="toggleWindow('win-fleet')">_</span><span>□</span><span onclick="toggleWindow('win-fleet')">×</span></div>
             </div>
             <div class="window-body">
                 <div class="metrics-grid">
-                    <div class="metric-card">
-                        <div>CPU Usage</div>
-                        <div class="metric-value" id="cpu-val">--%</div>
-                    </div>
-                    <div class="metric-card">
-                        <div>RAM Usage</div>
-                        <div class="metric-value" id="ram-val">--%</div>
-                    </div>
+                    <div class="metric-card"><div>CPU Usage</div><div class="metric-value" id="cpu-val">--%</div></div>
+                    <div class="metric-card"><div>RAM Usage</div><div class="metric-value" id="ram-val">--%</div></div>
                 </div>
-                <h4 style="color: #38bdf8; margin-top: 5px;">רשימת תחנות פעילות:</h4>
-                <div id="fleet-list" style="background: #0f172a; padding: 10px; border-radius: 6px; border: 1px solid #334155; flex: 1; overflow-y: auto;">
-                    טוען נתונים...
-                </div>
+                <h4 style="color: #38bdf8; font-size: 14px;">תחנות פעילות ברשת:</h4>
+                <div id="fleet-list" style="background: #0f172a; padding: 8px; border-radius: 6px; border: 1px solid #334155; flex: 1; overflow-y: auto; font-size: 13px;">טוען...</div>
             </div>
         </div>
 
-        <!-- Floating Window: Advanced Linux Terminal -->
-        <div class="window" id="win-terminal" style="top: 30px; left: 510px; width: 500px; height: 420px;">
+        <!-- Terminal Window -->
+        <div class="window" id="win-terminal" style="top: 20px; left: 480px; width: 460px; height: 380px;">
             <div class="window-header">
-                <span>💻 מסוף טרמינל מבודד (Bash)</span>
+                <span>💻 מסוף טרמינל מבודד</span>
                 <div class="window-controls"><span onclick="toggleWindow('win-terminal')">_</span><span>□</span><span onclick="toggleWindow('win-terminal')">×</span></div>
             </div>
             <div class="window-body" style="background: #000;">
                 <div class="terminal">
-                    <div class="terminal-output" id="term-output">ברוך הבא לטרמינל הווירטואלי. הקלד 'help' לקבלת רשימת פקודות.\n</div>
+                    <div class="terminal-output" id="term-output">טרמינל פעיל. הקלד 'help' או 'ps'.\n</div>
                     <div class="terminal-input-line">
                         <span id="term-prompt">user@os:~$</span>
                         <input type="text" id="term-input" onkeydown="handleTerminalKey(event)">
@@ -130,28 +114,32 @@
                 </div>
             </div>
         </div>
+
+        <!-- Task Manager Window -->
+        <div class="window" id="win-tasks" style="top: 240px; left: 20px; width: 440px; height: 260px;">
+            <div class="window-header">
+                <span>📊 מנהל תהליכים (Task Manager)</span>
+                <div class="window-controls"><span onclick="toggleWindow('win-tasks')">_</span><span>□</span><span onclick="toggleWindow('win-tasks')">×</span></div>
+            </div>
+            <div class="window-body">
+                <div id="process-list" style="flex: 1; overflow-y: auto;">טוען תהליכים...</div>
+            </div>
+        </div>
     </div>
 
-    <!-- Taskbar -->
     <div id="taskbar">
-        <button class="start-btn" onclick="alert('Web OS v3.4 Active & Secure')">start ❖</button>
+        <button class="start-btn" onclick="alert('Web OS Ultimate Engine Active')">start ❖</button>
         <div class="status-info" id="user-status-bar">מחובר כמערכת</div>
     </div>
 
     <script>
         const socket = io();
-        let currentUser = '';
-        let currentRole = '';
-        let currentPcId = '';
+        let currentUser = '', currentRole = '', currentPcId = '';
 
         function login() {
             const username = document.getElementById('username-input').value.trim();
             const password = document.getElementById('password-input').value.trim();
-
-            if (!username) {
-                alert('נא להזין שם משתמש');
-                return;
-            }
+            if (!username) { alert('נא להזין שם משתמש'); return; }
 
             fetch('/api/login', {
                 method: 'POST',
@@ -164,59 +152,53 @@
                     currentUser = username;
                     currentRole = data.role;
                     currentPcId = data.pc_id || username;
-
                     document.getElementById('login-screen').style.display = 'none';
                     document.getElementById('desktop').style.display = 'block';
-                    document.getElementById('user-status-bar').innerText = `משתמש מחובר: ${username} (${currentRole})`;
-
+                    document.getElementById('user-status-bar').innerText = `מחובר: ${username} (${currentRole})`;
                     socket.emit('join_pc_room', { pc_id: currentPcId });
                     loadFleetData();
-                    startLiveMetricsTicker();
-                } else {
-                    alert(data.error || 'שגיאת התחברות');
-                }
+                } else { alert(data.error); }
             });
         }
 
         function loadFleetData() {
             fetch('/api/admin/all_computers')
             .then(res => res.json())
-            .then(data => {
-                updateFleetUI(data);
-            });
+            .then(data => updateFleetUI(data));
         }
 
         function updateFleetUI(fleet) {
             const list = document.getElementById('fleet-list');
             list.innerHTML = '';
+            const procContainer = document.getElementById('process-list');
+            procContainer.innerHTML = '';
+
             for (let [pcId, info] of Object.entries(fleet)) {
                 if (pcId === currentPcId || currentRole === 'admin') {
-                    if (info.cpu) {
+                    if (info.cpu !== undefined) {
                         document.getElementById('cpu-val').innerText = info.cpu + '%';
                         document.getElementById('ram-val').innerText = info.ram + '%';
                     }
+                    if (pcId === currentPcId && info.processes) {
+                        info.processes.forEach(p => {
+                            procContainer.innerHTML += `<div class="process-item"><span><b>[${p.pid}]</b> ${p.name} (${p.cpu}%)</span> <button class="kill-btn" onclick="killProc(${p.pid})">Kill</button></div>`;
+                        });
+                    }
                 }
                 const div = document.createElement('div');
-                div.style.padding = '8px';
+                div.style.padding = '6px';
                 div.style.borderBottom = '1px solid #1e293b';
-                div.innerHTML = `<b>${pcId}</b> (${info.owner}) - <span style="color:${info.status.includes('Online') ? '#34d399' : '#f87171'}">${info.status}</span><br><small>פעילות אחרונה: ${info.last_activity}</small>`;
+                div.innerHTML = `<b>${pcId}</b> (${info.owner}) - <span style="color:#34d399">${info.status}</span><br><small>CPU: ${info.cpu}% | פעילות: ${info.last_activity}</small>`;
                 list.appendChild(div);
             }
         }
 
-        function startLiveMetricsTicker() {
-            setInterval(() => {
-                if (currentPcId) {
-                    fetch(`/api/computer/${currentPcId}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.cpu) {
-                            document.getElementById('cpu-val').innerText = data.cpu + '%';
-                            document.getElementById('ram-val').innerText = data.ram + '%';
-                        }
-                    });
-                }
-            }, 4000);
+        function killProc(pid) {
+            fetch('/api/computer/kill_process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pc_id: currentPcId, pid: pid })
+            }).then(res => res.json()).then(data => loadFleetData());
         }
 
         function handleTerminalKey(event) {
@@ -224,7 +206,6 @@
                 const input = document.getElementById('term-input');
                 const cmd = input.value.trim();
                 if (!cmd) return;
-
                 const outputDiv = document.getElementById('term-output');
                 outputDiv.innerText += `\nuser@${currentPcId}:~$ ${cmd}\n`;
 
@@ -243,8 +224,8 @@
                 .then(data => {
                     outputDiv.innerText += data.output + '\n';
                     outputDiv.scrollTop = outputDiv.scrollHeight;
+                    loadFleetData();
                 });
-
                 input.value = '';
             }
         }
@@ -254,37 +235,23 @@
             win.style.display = win.style.display === 'none' ? 'flex' : 'none';
         }
 
-        socket.on('fleet_updated', function(fleet) {
-            updateFleetUI(fleet);
-        });
+        socket.on('fleet_updated', function(fleet) { updateFleetUI(fleet); });
 
-        // Make windows draggable
+        // Draggable Windows Logic
         document.querySelectorAll('.window').forEach(win => {
             const header = win.querySelector('.window-header');
             let isDragging = false, startX, startY, initialLeft, initialTop;
-
             header.addEventListener('mousedown', (e) => {
-                isDragging = true;
-                startX = e.clientX;
-                startY = e.clientY;
-                initialLeft = win.offsetLeft;
-                initialTop = win.offsetTop;
-                zIndexInc(win);
+                isDragging = true; startX = e.clientX; startY = e.clientY;
+                initialLeft = win.offsetLeft; initialTop = win.offsetTop;
             });
-
             document.addEventListener('mousemove', (e) => {
                 if (!isDragging) return;
                 win.style.left = (initialLeft + e.clientX - startX) + 'px';
                 win.style.top = (initialTop + e.clientY - startY) + 'px';
             });
-
             document.addEventListener('mouseup', () => { isDragging = false; });
         });
-
-        function zIndexInc(win) {
-            document.querySelectorAll('.window').forEach(w => w.style.zIndex = 10);
-            win.style.zIndex = 100;
-        }
     </script>
 </body>
 </html>
